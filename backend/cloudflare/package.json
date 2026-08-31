@@ -1,0 +1,8 @@
+{
+  "name": "jarvis-mobile-token-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test"
+  }
+}

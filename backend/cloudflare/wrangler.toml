@@ -1,0 +1,6 @@
+name = "jarvis-mobile-token"
+main = "src/worker.js"
+compatibility_date = "2025-09-01"
+
+# Credentials are Worker secrets, never this file or the Android APK:
+# LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET, JARVIS_ALLOWED_INSTALLATIONS
