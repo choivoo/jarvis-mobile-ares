@@ -20,7 +20,7 @@ class JarvisVoiceController(
     private val onRecognized: (String) -> Unit,
     private val onSpeakingStarted: () -> Unit,
     private val onSpeakingFinished: () -> Unit,
-    private val onError: (String) -> Unit,
+    private val reportError: (String) -> Unit,
 ) : RecognitionListener {
     private val appContext = context.applicationContext
     private var isListening = false
@@ -35,7 +35,7 @@ class JarvisVoiceController(
                 tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) = onSpeakingStarted()
                     override fun onDone(utteranceId: String?) = onSpeakingFinished()
-                    override fun onError(utteranceId: String?) = onError("영어 음성 재생을 시작하지 못했습니다.")
+                    override fun onError(utteranceId: String?) = reportError("영어 음성 재생을 시작하지 못했습니다.")
                 })
             }
         }
@@ -43,7 +43,7 @@ class JarvisVoiceController(
 
     fun startListening() {
         if (!SpeechRecognizer.isRecognitionAvailable(appContext)) {
-            onError("이 기기에서는 음성 인식을 사용할 수 없습니다.")
+            reportError("이 기기에서는 음성 인식을 사용할 수 없습니다.")
             return
         }
         stopSpeaking()
@@ -68,7 +68,7 @@ class JarvisVoiceController(
 
     fun speak(text: String) {
         val engine = tts ?: run {
-            onError("영어 음성 엔진을 준비 중입니다. 잠시 후 다시 시도하세요.")
+            reportError("영어 음성 엔진을 준비 중입니다. 잠시 후 다시 시도하세요.")
             return
         }
         engine.speak(text, TextToSpeech.QUEUE_FLUSH, Bundle(), "jarvis-response")
@@ -97,7 +97,7 @@ class JarvisVoiceController(
 
     override fun onResults(results: Bundle?) {
         val koreanText = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-        if (koreanText.isNullOrBlank()) onError("음성을 인식하지 못했습니다. 다시 말씀해 주세요.") else onRecognized(koreanText)
+        if (koreanText.isNullOrBlank()) reportError("음성을 인식하지 못했습니다. 다시 말씀해 주세요.") else onRecognized(koreanText)
     }
 
     override fun onError(error: Int) {
@@ -110,6 +110,6 @@ class JarvisVoiceController(
             SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "음성을 인식하지 못했습니다. 다시 말씀해 주세요."
             else -> "음성 인식이 중단되었습니다. 다시 시도하세요."
         }
-        onError(message)
+        reportError(message)
     }
 }

@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
             },
             onSpeakingStarted = { uiState = uiState.copy(phase = JarvisPhase.SPEAKING, audioLevel = 0.35f) },
             onSpeakingFinished = { uiState = uiState.copy(phase = JarvisPhase.IDLE, audioLevel = 0f) },
-            onError = { message -> uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = message, audioLevel = 0f) },
+            reportError = { message -> uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = message, audioLevel = 0f) },
         )
         enableEdgeToEdge()
         setContent {
