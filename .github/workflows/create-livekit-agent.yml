@@ -2,6 +2,11 @@ name: Deploy LiveKit Cloud Agent
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - release/v1.0.0
+    paths:
+      - "agent/**"
 
 permissions:
   contents: write
