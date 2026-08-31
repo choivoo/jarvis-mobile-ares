@@ -16,6 +16,12 @@ android {
         versionCode = 100
         versionName = "1.0.0"
 
+        // This is a public HTTPS endpoint, never a LiveKit API key or secret. The
+        // production deployment supplies it as a Gradle property; an empty value
+        // keeps cloud connection unavailable rather than falling back to a demo room.
+        val tokenEndpoint = providers.gradleProperty("jarvisTokenEndpoint").orNull.orEmpty()
+        buildConfigField("String", "JARVIS_TOKEN_ENDPOINT", "\"$tokenEndpoint\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -66,6 +72,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     sourceSets {
         getByName("main").java.setSrcDirs(listOf("src/main/java/com/sundwaeji"))
@@ -93,6 +100,8 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons.extended)
+    implementation(libs.livekit.lib)
+    implementation(libs.okhttp)
     implementation("com.google.mlkit:translate:17.0.3")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

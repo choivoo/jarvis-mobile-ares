@@ -38,7 +38,7 @@
             android:stopWithTask="false">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-initiated background assistant status and wake readiness" />
+                android:value="User-initiated local wake detection and background assistant status" />
         </service>
         <service
             android:name=".overlay.JarvisSubtitleOverlayService"

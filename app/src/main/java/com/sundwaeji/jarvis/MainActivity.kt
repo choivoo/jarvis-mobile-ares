@@ -14,6 +14,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -27,12 +28,17 @@ import com.sundwaeji.jarvis.tools.ToolRouter
 import com.sundwaeji.jarvis.background.JarvisCoreService
 import com.sundwaeji.jarvis.overlay.JarvisSubtitleOverlayService
 import com.sundwaeji.jarvis.voice.JarvisVoiceController
+import com.sundwaeji.jarvis.livekit.LiveKitConnectionManager
+import com.sundwaeji.jarvis.livekit.LiveKitConnectionState
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     private var uiState by mutableStateOf(JarvisUiState())
     private lateinit var voice: JarvisVoiceController
     private lateinit var translation: TranslationManager
     private lateinit var tools: ToolRouter
+    private lateinit var liveKit: LiveKitConnectionManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +48,23 @@ class MainActivity : ComponentActivity() {
         refreshOverlayAuthorization()
         translation = TranslationManager()
         tools = ToolRouter(applicationContext)
+        liveKit = LiveKitConnectionManager(applicationContext).also { manager ->
+            manager.onAgentResponse = ::deliverAgentResponse
+        }
+        lifecycleScope.launch {
+            liveKit.status.collectLatest { status ->
+                val phase = when (status.state) {
+                    LiveKitConnectionState.RECONNECTING -> JarvisPhase.THINKING
+                    LiveKitConnectionState.ERROR -> JarvisPhase.ERROR
+                    else -> uiState.phase
+                }
+                uiState = uiState.copy(
+                    phase = phase,
+                    networkLabel = status.state.hudLabel,
+                )
+            }
+        }
+        liveKit.connect()
         voice = JarvisVoiceController(
             context = this,
             onListening = { uiState = uiState.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", activeTool = "VOICE", audioLevel = 0f) },
@@ -83,6 +106,7 @@ class MainActivity : ComponentActivity() {
         voice.release()
         translation.close()
         tools.close()
+        liveKit.release()
         super.onDestroy()
     }
 
@@ -97,24 +121,37 @@ class MainActivity : ComponentActivity() {
             text = koreanInput,
             onSuccess = { englishInput ->
                 // The English string is deliberately not exposed on the standard HUD.
-                tools.route(
-                    englishInput = englishInput,
-                    onExecuting = { tool -> uiState = uiState.copy(phase = JarvisPhase.EXECUTING, activeTool = tool, koreanSubtitle = "요청한 도구를 실행하고 있습니다…") },
-                    onSuccess = ::deliverToolResult,
-                    onFailure = ::showTranslationFailure,
-                )
+                if (!tools.handlesLocally(englishInput) && liveKit.sendEnglishCommand(englishInput)) {
+                    uiState = uiState.copy(phase = JarvisPhase.THINKING, activeTool = "AI", koreanSubtitle = "JARVIS가 요청을 분석하고 있습니다…")
+                } else {
+                    tools.route(
+                        englishInput = englishInput,
+                        onExecuting = { tool -> uiState = uiState.copy(phase = JarvisPhase.EXECUTING, activeTool = tool, koreanSubtitle = "요청한 도구를 실행하고 있습니다…") },
+                        onSuccess = ::deliverToolResult,
+                        onFailure = ::showTranslationFailure,
+                    )
+                }
             },
             onFailure = ::showTranslationFailure,
         )
     }
 
     private fun deliverToolResult(result: ToolResult) {
+        deliverEnglishResponse(result.englishResponse, result.tool, shouldSpeakLocally = true)
+    }
+
+    private fun deliverAgentResponse(englishResponse: String) {
+        // Gemini Live already provides the English audio through the subscribed Room track.
+        deliverEnglishResponse(englishResponse, "AI", shouldSpeakLocally = false)
+    }
+
+    private fun deliverEnglishResponse(englishResponse: String, tool: String, shouldSpeakLocally: Boolean) {
         translation.translateEnToKo(
-            text = result.englishResponse,
+            text = englishResponse,
             onSuccess = { koreanSubtitle ->
-                uiState = uiState.copy(phase = JarvisPhase.SPEAKING, activeTool = result.tool, koreanSubtitle = koreanSubtitle, audioLevel = .35f)
+                uiState = uiState.copy(phase = JarvisPhase.SPEAKING, activeTool = tool, koreanSubtitle = koreanSubtitle, audioLevel = .35f)
                 showOverlaySubtitle(koreanSubtitle)
-                voice.speak(result.englishResponse)
+                if (shouldSpeakLocally) voice.speak(englishResponse)
             },
             onFailure = ::showTranslationFailure,
         )

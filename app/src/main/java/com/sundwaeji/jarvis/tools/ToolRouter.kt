@@ -23,6 +23,15 @@ class ToolRouter(private val context: Context) {
     private val executor = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
 
+    fun handlesLocally(englishInput: String): Boolean {
+        val command = englishInput.lowercase(Locale.UK)
+        return command.contains("battery") || command.contains("time") ||
+            command.contains("device") || command.contains("phone status") ||
+            command.contains("weather") || command.contains("rain") ||
+            command.contains("umbrella") || command.startsWith("search") ||
+            command.startsWith("find") || command.contains("look up")
+    }
+
     fun route(
         englishInput: String,
         onExecuting: (String) -> Unit,
