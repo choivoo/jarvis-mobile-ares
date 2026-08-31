@@ -35,7 +35,7 @@ private val Ice = Color(0xFFD9FAFF)
 private val Navy = Color(0xFF030A12)
 
 @Composable
-fun JarvisHud(state: JarvisUiState, onMic: () -> Unit) {
+fun JarvisHud(state: JarvisUiState, onMic: () -> Unit, onSystem: () -> Unit) {
     Column(
         Modifier.fillMaxSize().background(Navy).statusBarsPadding().navigationBarsPadding().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -47,7 +47,7 @@ fun JarvisHud(state: JarvisUiState, onMic: () -> Unit) {
         Text(state.phase.label, color = Cyan, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
         Spacer(Modifier.height(22.dp)); JarvisWaveform(state.audioLevel, state.phase in setOf(JarvisPhase.LISTENING, JarvisPhase.SPEAKING))
         Spacer(Modifier.weight(.55f)); SubtitleCard(state.koreanSubtitle); Spacer(Modifier.height(18.dp))
-        CommandBar(onMic)
+        CommandBar(onMic, onSystem, state.backgroundServiceRunning)
     }
 }
 
@@ -132,9 +132,9 @@ private fun SubtitleCard(text: String) = Column(Modifier.fillMaxWidth().clip(Rou
 }
 
 @Composable
-private fun CommandBar(onMic: () -> Unit) = Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
+private fun CommandBar(onMic: () -> Unit, onSystem: () -> Unit, serviceRunning: Boolean) = Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
     Command(Icons.Outlined.Mic, "MIC", onMic); Command(Icons.Outlined.Visibility, "VISION") {}
-    Command(Icons.Outlined.Chat, "CHAT") {}; Command(Icons.Outlined.Settings, "SYSTEM") {}
+    Command(Icons.Outlined.Chat, "CHAT") {}; Command(if (serviceRunning) Icons.Outlined.StopCircle else Icons.Outlined.Settings, "SYSTEM", onSystem)
 }
 
 @Composable

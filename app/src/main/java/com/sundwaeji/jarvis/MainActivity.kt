@@ -2,6 +2,8 @@ package com.sundwaeji.jarvis
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.BatteryManager
 import androidx.activity.ComponentActivity
@@ -9,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -19,6 +22,7 @@ import com.sundwaeji.jarvis.ui.theme.JarvisAresTheme
 import com.sundwaeji.jarvis.translation.TranslationManager
 import com.sundwaeji.jarvis.tools.ToolResult
 import com.sundwaeji.jarvis.tools.ToolRouter
+import com.sundwaeji.jarvis.background.JarvisCoreService
 import com.sundwaeji.jarvis.voice.JarvisVoiceController
 
 class MainActivity : ComponentActivity() {
@@ -49,11 +53,23 @@ class MainActivity : ComponentActivity() {
                 if (granted) voice.startListening()
                 else uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = "음성 명령을 위해 마이크 권한을 허용해 주세요.")
             }
+            val requestNotifications = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+                if (granted || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) startBackgroundCore()
+                else uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = "백그라운드 상태 표시를 위해 알림 권한이 필요합니다.")
+            }
             JarvisAresTheme(darkTheme = true, dynamicColor = false) {
-                JarvisHud(state = uiState) {
-                    if (uiState.phase == JarvisPhase.LISTENING) voice.stopListening()
-                    else requestMic.launch(Manifest.permission.RECORD_AUDIO)
-                }
+                JarvisHud(
+                    state = uiState,
+                    onMic = {
+                        if (uiState.phase == JarvisPhase.LISTENING) voice.stopListening()
+                        else requestMic.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    onSystem = {
+                        if (uiState.backgroundServiceRunning) stopBackgroundCore()
+                        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        else startBackgroundCore()
+                    },
+                )
             }
         }
     }
@@ -95,5 +111,15 @@ class MainActivity : ComponentActivity() {
 
     private fun showTranslationFailure(message: String) {
         uiState = uiState.copy(phase = JarvisPhase.ERROR, activeTool = null, koreanSubtitle = message, audioLevel = 0f)
+    }
+
+    private fun startBackgroundCore() {
+        ContextCompat.startForegroundService(this, Intent(this, JarvisCoreService::class.java))
+        uiState = uiState.copy(backgroundServiceRunning = true, koreanSubtitle = "JARVIS 백그라운드 시스템을 시작했습니다.")
+    }
+
+    private fun stopBackgroundCore() {
+        stopService(Intent(this, JarvisCoreService::class.java))
+        uiState = uiState.copy(backgroundServiceRunning = false, koreanSubtitle = "JARVIS 백그라운드 시스템을 중지했습니다.")
     }
 }

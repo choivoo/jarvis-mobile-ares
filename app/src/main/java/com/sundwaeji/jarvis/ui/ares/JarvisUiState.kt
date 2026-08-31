@@ -13,4 +13,5 @@ data class JarvisUiState(
     val networkLabel: String = "LOCAL",
     val batteryPercent: Int? = null,
     val audioLevel: Float = 0f,
+    val backgroundServiceRunning: Boolean = false,
 )
