@@ -22,6 +22,7 @@ jobs:
       LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
       LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
       LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+      JARVIS_ALLOWED_INSTALLATIONS: ${{ secrets.JARVIS_ALLOWED_INSTALLATIONS }}
       TOKEN_ENDPOINT: https://jarvis-mobile-token.choivoovooge.workers.dev
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +33,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for required in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET; do
+          for required in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET JARVIS_ALLOWED_INSTALLATIONS; do
             test -n "${!required}"
           done
       - name: Deploy fail-closed token service
@@ -44,7 +45,7 @@ jobs:
           set -euo pipefail
           response="$(curl --fail --retry 3 --retry-all-errors --max-time 15 "$TOKEN_ENDPOINT/health")"
           test "$response" = '{"service":"jarvis-token-service","status":"ready"}'
-      - name: Set Worker server-side LiveKit secrets
+      - name: Set Worker server-side secrets
         working-directory: backend/cloudflare
         shell: bash
         run: |
@@ -52,6 +53,4 @@ jobs:
           printf %s "$LIVEKIT_URL" | npx --yes wrangler@4 secret put LIVEKIT_URL
           printf %s "$LIVEKIT_API_KEY" | npx --yes wrangler@4 secret put LIVEKIT_API_KEY
           printf %s "$LIVEKIT_API_SECRET" | npx --yes wrangler@4 secret put LIVEKIT_API_SECRET
-
-# Installation allowlists remain fail-closed until a specific activation ID is enrolled.
-# JARVIS_ALLOWED_INSTALLATIONS is deliberately not supplied by CI and is set only after RC install.
+          printf %s "$JARVIS_ALLOWED_INSTALLATIONS" | npx --yes wrangler@4 secret put JARVIS_ALLOWED_INSTALLATIONS
