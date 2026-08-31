@@ -7,6 +7,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.Voice
 import java.util.Locale
 
 /**
@@ -30,8 +31,9 @@ class JarvisVoiceController(
     init {
         tts = TextToSpeech(appContext) { status ->
             if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.UK
-                tts?.setSpeechRate(0.94f)
+                tts?.let(::configureBritishMaleVoice)
+                tts?.setSpeechRate(0.92f)
+                tts?.setPitch(0.92f)
                 tts?.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
                     override fun onStart(utteranceId: String?) = onSpeakingStarted()
                     override fun onDone(utteranceId: String?) = onSpeakingFinished()
@@ -39,6 +41,31 @@ class JarvisVoiceController(
                 })
             }
         }
+    }
+
+    /**
+     * Android does not expose a gender field for TTS voices. Prefer installed British
+     * English voices whose engine identifiers explicitly mark a masculine option, then
+     * fall back to the highest-quality British English voice without changing language.
+     */
+    private fun configureBritishMaleVoice(engine: TextToSpeech) {
+        engine.language = Locale.UK
+        val british = engine.voices.orEmpty()
+            .filter { it.locale.language == "en" && it.locale.country.equals("GB", ignoreCase = true) }
+            .filterNot { voice -> voice.features?.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) == true }
+
+        val preferred = british.maxByOrNull { voice -> masculineBritishScore(voice) }
+        if (preferred != null) engine.voice = preferred
+    }
+
+    private fun masculineBritishScore(voice: Voice): Int {
+        val id = voice.name.lowercase(Locale.ROOT)
+        val masculineHint = listOf("male", "masculine", "gbb", "gbd", "rjs").any(id::contains)
+        val feminineHint = listOf("female", "feminine", "gba", "gbc").any(id::contains)
+        return (if (masculineHint) 1_000 else 0) -
+            (if (feminineHint) 1_000 else 0) +
+            voice.quality * 10 +
+            voice.latency
     }
 
     fun startListening() {
