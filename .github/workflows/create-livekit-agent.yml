@@ -40,14 +40,14 @@ jobs:
           test -n "$GOOGLE_API_KEY"
           test -f agent/Dockerfile
       - name: Create and deploy LiveKit Cloud agent
-        uses: livekit/deploy-action@v2
+        uses: livekit/deploy-action@v2.12.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           OPERATION: create
           WORKING_DIRECTORY: agent
       - name: Wait for agent health
-        uses: livekit/deploy-action@v2
+        uses: livekit/deploy-action@v2.12.2
         with:
           OPERATION: status-retry
           WORKING_DIRECTORY: agent
