@@ -35,12 +35,12 @@ class MainActivity : ComponentActivity() {
         translation = TranslationManager()
         voice = JarvisVoiceController(
             context = this,
-            onListening = { uiState = uiState.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", audioLevel = 0f) },
+            onListening = { uiState = uiState.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", activeTool = "VOICE", audioLevel = 0f) },
             onAudioLevel = { level -> uiState = uiState.copy(audioLevel = level) },
             onRecognized = ::processKoreanVoice,
             onSpeakingStarted = { uiState = uiState.copy(phase = JarvisPhase.SPEAKING, audioLevel = 0.35f) },
-            onSpeakingFinished = { uiState = uiState.copy(phase = JarvisPhase.IDLE, audioLevel = 0f) },
-            reportError = { message -> uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = message, audioLevel = 0f) },
+            onSpeakingFinished = { uiState = uiState.copy(phase = JarvisPhase.IDLE, activeTool = null, audioLevel = 0f) },
+            reportError = { message -> uiState = uiState.copy(phase = JarvisPhase.ERROR, activeTool = null, koreanSubtitle = message, audioLevel = 0f) },
         )
         enableEdgeToEdge()
         setContent {
@@ -64,7 +64,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun processKoreanVoice(koreanInput: String) {
-        uiState = uiState.copy(phase = JarvisPhase.TRANSLATING, koreanSubtitle = "한국어 명령을 처리하고 있습니다…", audioLevel = 0f)
+        uiState = uiState.copy(phase = JarvisPhase.TRANSLATING, activeTool = "TRANSLATE", koreanSubtitle = "한국어 명령을 처리하고 있습니다…", audioLevel = 0f)
         translation.translateKoToEn(
             text = koreanInput,
             onSuccess = { englishInput ->
@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
                 translation.translateEnToKo(
                     text = englishResponse,
                     onSuccess = { koreanSubtitle ->
-                        uiState = uiState.copy(phase = JarvisPhase.SPEAKING, koreanSubtitle = koreanSubtitle, audioLevel = .35f)
+                        uiState = uiState.copy(phase = JarvisPhase.SPEAKING, activeTool = if (englishInput.contains("battery", true) || englishInput.contains("time", true)) "DEVICE" else "LOCAL", koreanSubtitle = koreanSubtitle, audioLevel = .35f)
                         voice.speak(englishResponse)
                     },
                     onFailure = ::showTranslationFailure,
@@ -93,6 +93,6 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showTranslationFailure(message: String) {
-        uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = message, audioLevel = 0f)
+        uiState = uiState.copy(phase = JarvisPhase.ERROR, activeTool = null, koreanSubtitle = message, audioLevel = 0f)
     }
 }
