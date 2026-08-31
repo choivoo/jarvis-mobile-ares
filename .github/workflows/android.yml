@@ -48,7 +48,7 @@ jobs:
         working-directory: backend/cloudflare
         run: npm test
       - name: Test, lint and verify debug build
-        run: gradle test lint assembleDebug --stacktrace
+        run: gradle test lint assembleDebug --stacktrace -PjarvisTokenEndpoint=https://jarvis-mobile-token.choivoovooge.workers.dev/v1/livekit/token
       - name: Reject embedded secrets
         shell: bash
         run: |
@@ -128,7 +128,7 @@ jobs:
           python -m pytest -q
 
       - name: Test, lint and build signed release
-        run: gradle clean test lint assembleRelease --stacktrace
+        run: gradle clean test lint assembleRelease --stacktrace -PjarvisTokenEndpoint=https://jarvis-mobile-token.choivoovooge.workers.dev/v1/livekit/token
 
       - name: Verify signature and checksums
         shell: bash
