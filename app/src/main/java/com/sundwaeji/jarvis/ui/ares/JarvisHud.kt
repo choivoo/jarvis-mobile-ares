@@ -35,7 +35,7 @@ private val Ice = Color(0xFFD9FAFF)
 private val Navy = Color(0xFF030A12)
 
 @Composable
-fun JarvisHud(state: JarvisUiState, onMic: () -> Unit, onSystem: () -> Unit) {
+fun JarvisHud(state: JarvisUiState, onMic: () -> Unit, onOverlay: () -> Unit, onSystem: () -> Unit) {
     Column(
         Modifier.fillMaxSize().background(Navy).statusBarsPadding().navigationBarsPadding().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -46,7 +46,7 @@ fun JarvisHud(state: JarvisUiState, onMic: () -> Unit, onSystem: () -> Unit) {
         Spacer(Modifier.height(18.dp))
         Text(state.phase.label, color = Cyan, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
         Spacer(Modifier.height(22.dp)); JarvisWaveform(state.audioLevel, state.phase in setOf(JarvisPhase.LISTENING, JarvisPhase.SPEAKING))
-        Spacer(Modifier.weight(.55f)); SubtitleCard(state.koreanSubtitle); Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.weight(.55f)); SubtitleCard(state.koreanSubtitle, state.overlayAuthorized, onOverlay); Spacer(Modifier.height(18.dp))
         CommandBar(onMic, onSystem, state.backgroundServiceRunning)
     }
 }
@@ -123,8 +123,17 @@ private fun JarvisWaveform(audioLevel: Float, active: Boolean) {
 }
 
 @Composable
-private fun SubtitleCard(text: String) = Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xB20A1722)).border(1.dp, Cyan.copy(.28f), RoundedCornerShape(12.dp)).padding(16.dp)) {
-    Text("JARVIS // KO SUBTITLE", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+private fun SubtitleCard(text: String, overlayAuthorized: Boolean, onOverlay: () -> Unit) = Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xB20A1722)).border(1.dp, Cyan.copy(.28f), RoundedCornerShape(12.dp)).padding(16.dp)) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+        Text("JARVIS // KO SUBTITLE", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
+        Text(
+            if (overlayAuthorized) "OVERLAY ON" else "ENABLE OVERLAY",
+            color = if (overlayAuthorized) Cyan else Ice.copy(.62f),
+            fontSize = 8.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onOverlay).padding(horizontal = 8.dp, vertical = 6.dp),
+        )
+    }
     Spacer(Modifier.height(7.dp))
     AnimatedContent(targetState = text, transitionSpec = { fadeIn(tween(170)) togetherWith fadeOut(tween(90)) }, label = "subtitle") { subtitle ->
         Text(subtitle, color = Ice, fontSize = 16.sp, lineHeight = 24.sp)

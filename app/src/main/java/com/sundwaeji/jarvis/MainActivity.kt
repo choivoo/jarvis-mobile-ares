@@ -6,6 +6,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.os.BatteryManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -23,6 +25,7 @@ import com.sundwaeji.jarvis.translation.TranslationManager
 import com.sundwaeji.jarvis.tools.ToolResult
 import com.sundwaeji.jarvis.tools.ToolRouter
 import com.sundwaeji.jarvis.background.JarvisCoreService
+import com.sundwaeji.jarvis.overlay.JarvisSubtitleOverlayService
 import com.sundwaeji.jarvis.voice.JarvisVoiceController
 
 class MainActivity : ComponentActivity() {
@@ -36,6 +39,7 @@ class MainActivity : ComponentActivity() {
         val battery = (getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
             .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
         uiState = uiState.copy(batteryPercent = battery)
+        refreshOverlayAuthorization()
         translation = TranslationManager()
         tools = ToolRouter(applicationContext)
         voice = JarvisVoiceController(
@@ -64,6 +68,7 @@ class MainActivity : ComponentActivity() {
                         if (uiState.phase == JarvisPhase.LISTENING) voice.stopListening()
                         else requestMic.launch(Manifest.permission.RECORD_AUDIO)
                     },
+                    onOverlay = ::openOverlayPermission,
                     onSystem = {
                         if (uiState.backgroundServiceRunning) stopBackgroundCore()
                         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -79,6 +84,11 @@ class MainActivity : ComponentActivity() {
         translation.close()
         tools.close()
         super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        refreshOverlayAuthorization()
     }
 
     private fun processKoreanVoice(koreanInput: String) {
@@ -103,6 +113,7 @@ class MainActivity : ComponentActivity() {
             text = result.englishResponse,
             onSuccess = { koreanSubtitle ->
                 uiState = uiState.copy(phase = JarvisPhase.SPEAKING, activeTool = result.tool, koreanSubtitle = koreanSubtitle, audioLevel = .35f)
+                showOverlaySubtitle(koreanSubtitle)
                 voice.speak(result.englishResponse)
             },
             onFailure = ::showTranslationFailure,
@@ -121,5 +132,26 @@ class MainActivity : ComponentActivity() {
     private fun stopBackgroundCore() {
         stopService(Intent(this, JarvisCoreService::class.java))
         uiState = uiState.copy(backgroundServiceRunning = false, koreanSubtitle = "JARVIS 백그라운드 시스템을 중지했습니다.")
+    }
+
+    private fun openOverlayPermission() {
+        if (Settings.canDrawOverlays(this)) {
+            uiState = uiState.copy(overlayAuthorized = true, koreanSubtitle = "다른 앱 위 한국어 자막이 활성화되어 있습니다.")
+            return
+        }
+        uiState = uiState.copy(koreanSubtitle = "다른 앱에서도 한국어 자막을 표시하려면 '다른 앱 위에 표시' 권한을 허용해 주세요.")
+        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
+    }
+
+    private fun refreshOverlayAuthorization() {
+        uiState = uiState.copy(overlayAuthorized = Settings.canDrawOverlays(this))
+    }
+
+    private fun showOverlaySubtitle(text: String) {
+        if (!Settings.canDrawOverlays(this)) return
+        startService(
+            Intent(this, JarvisSubtitleOverlayService::class.java)
+                .putExtra(JarvisSubtitleOverlayService.EXTRA_SUBTITLE, text),
+        )
     }
 }

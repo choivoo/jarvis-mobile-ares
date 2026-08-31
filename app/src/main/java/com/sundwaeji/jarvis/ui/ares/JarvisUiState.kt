@@ -14,4 +14,5 @@ data class JarvisUiState(
     val batteryPercent: Int? = null,
     val audioLevel: Float = 0f,
     val backgroundServiceRunning: Boolean = false,
+    val overlayAuthorized: Boolean = false,
 )

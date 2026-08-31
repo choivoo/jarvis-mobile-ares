@@ -40,6 +40,10 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User-initiated background assistant status and wake readiness" />
         </service>
+        <service
+            android:name=".overlay.JarvisSubtitleOverlayService"
+            android:exported="false"
+            android:stopWithTask="false" />
     </application>
 
 </manifest>
