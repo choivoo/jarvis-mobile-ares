@@ -45,6 +45,18 @@ jobs:
           set -euo pipefail
           response="$(curl --fail --retry 3 --retry-all-errors --max-time 15 "$TOKEN_ENDPOINT/health")"
           test "$response" = '{"service":"jarvis-token-service","status":"ready"}'
+      - name: Verify enrolled installation token contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail --retry 3 --retry-all-errors --max-time 15 \
+            -H "X-Jarvis-Installation: $JARVIS_ALLOWED_INSTALLATIONS" \
+            "$TOKEN_ENDPOINT/v1/livekit/token")"
+          TOKEN_RESPONSE="$response" node -e '
+            const result = JSON.parse(process.env.TOKEN_RESPONSE);
+            if (!result.serverUrl?.startsWith("wss://")) process.exit(1);
+            if ((result.participantToken?.split(".").length ?? 0) !== 3) process.exit(1);
+          '
       - name: Set Worker server-side secrets
         working-directory: backend/cloudflare
         shell: bash
