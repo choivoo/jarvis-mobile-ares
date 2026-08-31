@@ -1,7 +1,5 @@
 package com.sundwaeji.jarvis.ui.ares
 
-import android.content.Context
-import android.os.BatteryManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,7 +12,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -23,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,13 +29,7 @@ private val Ice = Color(0xFFD9FAFF)
 private val Navy = Color(0xFF030A12)
 
 @Composable
-fun JarvisHud() {
-    val context = LocalContext.current
-    val battery = remember {
-        (context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
-            .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
-    }
-    var state by remember { mutableStateOf(JarvisUiState(batteryPercent = battery)) }
+fun JarvisHud(state: JarvisUiState, onMic: () -> Unit) {
     Column(
         Modifier.fillMaxSize().background(Navy).statusBarsPadding().navigationBarsPadding().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -51,11 +41,7 @@ fun JarvisHud() {
         Text(state.phase.label, color = Cyan, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
         Spacer(Modifier.height(22.dp)); JarvisWaveform(state.phase in setOf(JarvisPhase.LISTENING, JarvisPhase.SPEAKING))
         Spacer(Modifier.weight(.55f)); SubtitleCard(state.koreanSubtitle); Spacer(Modifier.height(18.dp))
-        CommandBar {
-            state = if (state.phase == JarvisPhase.LISTENING)
-                state.copy(phase = JarvisPhase.IDLE, koreanSubtitle = "음성 입력을 종료했습니다.", audioLevel = 0f)
-            else state.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", audioLevel = .65f)
-        }
+        CommandBar(onMic)
     }
 }
 
