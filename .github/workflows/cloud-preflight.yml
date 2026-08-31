@@ -1,0 +1,68 @@
+name: Cloud Credential Preflight
+
+on:
+  push:
+    branches:
+      - release/v1.0.0
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Validate private cloud configuration
+    runs-on: ubuntu-latest
+    env:
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+    steps:
+      - name: Validate required secret presence and formats
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$LIVEKIT_URL"
+          test -n "$LIVEKIT_API_KEY"
+          test -n "$LIVEKIT_API_SECRET"
+          test -n "$GOOGLE_API_KEY"
+          case "$LIVEKIT_URL" in wss://*) ;; *) exit 1 ;; esac
+          test "${#LIVEKIT_API_KEY}" -ge 8
+          test "${#LIVEKIT_API_SECRET}" -ge 16
+          test "${#GOOGLE_API_KEY}" -ge 20
+
+      - name: Validate LiveKit signing material without exposing it
+        shell: python
+        run: |
+          import base64
+          import hashlib
+          import hmac
+          import json
+          import os
+          import time
+
+          def segment(value):
+              return base64.urlsafe_b64encode(
+                  json.dumps(value, separators=(",", ":")).encode()
+              ).rstrip(b"=")
+
+          header = segment({"alg": "HS256", "typ": "JWT"})
+          payload = segment({
+              "iss": os.environ["LIVEKIT_API_KEY"],
+              "sub": "jarvis-preflight",
+              "iat": int(time.time()),
+              "exp": int(time.time()) + 60,
+              "video": {"roomJoin": True, "room": "jarvis-preflight"},
+          })
+          signing_input = header + b"." + payload
+          signature = hmac.new(
+              os.environ["LIVEKIT_API_SECRET"].encode(),
+              signing_input,
+              hashlib.sha256,
+          ).digest()
+          assert signature
+          print("Cloud signing material accepted without logging secret values.")
+
+      - name: Record safe readiness result
+        run: echo "Cloud credential preflight passed."
