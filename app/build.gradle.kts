@@ -14,7 +14,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 100
-        versionName = "1.0.0-rc.1"
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -22,13 +22,39 @@ android {
         }
     }
 
+    val releaseStorePath = System.getenv("JARVIS_KEYSTORE_PATH")
+    val releaseStorePassword = System.getenv("JARVIS_KEYSTORE_PASSWORD")
+    val releaseKeyAlias = System.getenv("JARVIS_KEY_ALIAS")
+    val releaseKeyPassword = System.getenv("JARVIS_KEY_PASSWORD")
+    val hasProductionSigning = listOf(
+        releaseStorePath,
+        releaseStorePassword,
+        releaseKeyAlias,
+        releaseKeyPassword,
+    ).all { !it.isNullOrBlank() }
+
+    signingConfigs {
+        if (hasProductionSigning) {
+            create("production") {
+                storeFile = file(releaseStorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-
-            // V0.1 CI artifact only. Production signing is configured before public release.
-            signingConfig = signingConfigs.getByName("debug")
+            if (hasProductionSigning) {
+                signingConfig = signingConfigs.getByName("production")
+            }
         }
     }
     compileOptions {
@@ -58,7 +84,6 @@ android {
 }
 
 dependencies {
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
