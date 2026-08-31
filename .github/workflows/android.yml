@@ -36,6 +36,11 @@ jobs:
         run: |
           python -m pip install --disable-pip-version-check -r requirements.txt
           python -m pytest -q
+      - name: Test LiveKit token service contract
+        working-directory: backend
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt pytest
+          python -m pytest -q
       - name: Test, lint and verify debug build
         run: gradle test lint assembleDebug --stacktrace
       - name: Reject embedded secrets
@@ -109,6 +114,11 @@ jobs:
         working-directory: agent
         run: |
           python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pytest -q
+      - name: Test LiveKit token service contract
+        working-directory: backend
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt pytest
           python -m pytest -q
 
       - name: Test, lint and build signed release
