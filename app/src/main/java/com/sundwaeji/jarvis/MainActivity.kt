@@ -18,8 +18,9 @@ import com.sundwaeji.jarvis.ui.ares.JarvisUiState
 import com.sundwaeji.jarvis.ui.theme.JarvisAresTheme
 import com.sundwaeji.jarvis.translation.TranslationManager
 import com.sundwaeji.jarvis.voice.JarvisVoiceController
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private var uiState by mutableStateOf(JarvisUiState())
@@ -87,7 +88,7 @@ class MainActivity : ComponentActivity() {
             "Your battery is currently at $it percent."
         } ?: "Battery information is currently unavailable."
         englishInput.contains("time", ignoreCase = true) ->
-            "It is currently ${LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))}."
+            "It is currently ${SimpleDateFormat("h:mm a", Locale.UK).format(Date())}."
         else -> "I understand. The cloud intelligence link is being prepared."
     }
 
