@@ -1,0 +1,61 @@
+name: Create LiveKit Cloud Agent
+
+on:
+  push:
+    branches:
+      - release/v1.0.0
+    paths:
+      - .github/workflows/create-livekit-agent.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  create:
+    name: Create and verify JARVIS agent
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: jarvis-livekit-agent-create
+      cancel-in-progress: false
+    env:
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+      GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+      SECRET_LIST: GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate deployment inputs without displaying values
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$LIVEKIT_URL"
+          test -n "$LIVEKIT_API_KEY"
+          test -n "$LIVEKIT_API_SECRET"
+          test -n "$GOOGLE_API_KEY"
+          test -f agent/Dockerfile
+      - name: Create and deploy LiveKit Cloud agent
+        uses: livekit/deploy-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          OPERATION: create
+          WORKING_DIRECTORY: agent
+      - name: Wait for agent health
+        uses: livekit/deploy-action@v2
+        with:
+          OPERATION: status-retry
+          WORKING_DIRECTORY: agent
+          TIMEOUT: 5m
+      - name: Preserve generated deployment configuration
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-livekit-agent-config
+          path: agent/livekit.toml
+          if-no-files-found: error
+          retention-days: 7
