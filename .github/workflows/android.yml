@@ -26,8 +26,27 @@ jobs:
         with:
           gradle-version: '8.13'
       - uses: android-actions/setup-android@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: agent/requirements.txt
+      - name: Test agent contract
+        working-directory: agent
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pytest -q
       - name: Test, lint and verify debug build
         run: gradle test lint assembleDebug --stacktrace
+      - name: Reject embedded secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -p app/build/outputs/apk/debug/app-debug.apk | strings > "$RUNNER_TEMP/apk-strings.txt"
+          if grep -E '(AIza[0-9A-Za-z_-]{30,}|LIVEKIT_API_SECRET=|JARVIS_KEYSTORE_PASSWORD=)' "$RUNNER_TEMP/apk-strings.txt"; then
+            echo 'Potential secret material detected in APK'
+            exit 1
+          fi
       - name: Upload verified debug APK
         uses: actions/upload-artifact@v4
         with:
@@ -45,6 +64,8 @@ jobs:
       JARVIS_KEY_PASSWORD: ${{ secrets.JARVIS_KEY_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -54,6 +75,20 @@ jobs:
         with:
           gradle-version: '8.13'
       - uses: android-actions/setup-android@v3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: agent/requirements.txt
+
+      - name: Validate official tag source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin release/v1.0.0
+          test "$GITHUB_SHA" = "$(git rev-parse origin/release/v1.0.0)"
+          grep -F 'versionName = "1.0.0"' app/build.gradle.kts
+          grep -F 'versionCode = 100' app/build.gradle.kts
 
       - name: Validate production signing secrets
         shell: bash
@@ -67,18 +102,39 @@ jobs:
           test -n "$JARVIS_KEY_PASSWORD"
           echo "$JARVIS_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/jarvis-release.jks"
           test -s "$RUNNER_TEMP/jarvis-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/jarvis-release.jks" -storepass "$JARVIS_KEYSTORE_PASSWORD" -alias "$JARVIS_KEY_ALIAS" >/dev/null
           echo "JARVIS_KEYSTORE_PATH=$RUNNER_TEMP/jarvis-release.jks" >> "$GITHUB_ENV"
 
-      - name: Test, lint and build signed release
-        run: gradle test lint assembleRelease --stacktrace
+      - name: Test agent contract
+        working-directory: agent
+        run: |
+          python -m pip install --disable-pip-version-check -r requirements.txt
+          python -m pytest -q
 
-      - name: Verify signed APK exists
+      - name: Test, lint and build signed release
+        run: gradle clean test lint assembleRelease --stacktrace
+
+      - name: Verify signature and checksums
         shell: bash
         run: |
           set -euo pipefail
           test -s app/build/outputs/apk/release/app-release.apk
           cp app/build/outputs/apk/release/app-release.apk "jarvis-mobile-v${VERSION}.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "jarvis-mobile-v${VERSION}.apk" | tee "jarvis-mobile-v${VERSION}.apk.signer.txt"
           sha256sum "jarvis-mobile-v${VERSION}.apk" > "jarvis-mobile-v${VERSION}.apk.sha256"
+          sha256sum -c "jarvis-mobile-v${VERSION}.apk.sha256"
+
+      - name: Reject embedded secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          unzip -p "jarvis-mobile-v${VERSION}.apk" | strings > "$RUNNER_TEMP/apk-strings.txt"
+          if grep -E '(AIza[0-9A-Za-z_-]{30,}|LIVEKIT_API_SECRET=|JARVIS_KEYSTORE_PASSWORD=)' "$RUNNER_TEMP/apk-strings.txt"; then
+            echo 'Potential secret material detected in APK'
+            exit 1
+          fi
 
       - name: Upload official APK artifact
         uses: actions/upload-artifact@v4
@@ -87,6 +143,7 @@ jobs:
           path: |
             jarvis-mobile-v${{ env.VERSION }}.apk
             jarvis-mobile-v${{ env.VERSION }}.apk.sha256
+            jarvis-mobile-v${{ env.VERSION }}.apk.signer.txt
 
       - name: Publish JARVIS Mobile V1.0 Official
         uses: softprops/action-gh-release@v2
@@ -98,12 +155,11 @@ jobs:
           body: |
             # JARVIS Mobile ARES V1.0.0
 
-            First official release of JARVIS Mobile ARES.
+            Production-signed official Android release. Korean speech is normalized to English for the assistant brain, spoken responses remain English, and the standard UI exposes Korean subtitles only.
 
-            Core release architecture includes the ARES HUD, Korean voice input pipeline, Korean-to-English translation layer, English assistant response/TTS flow, Korean subtitle overlay, background core, device/weather/search tool routing, and privacy-safe notification/overlay handling.
-
-            This APK is built as a production release and signed with the persistent JARVIS production signing key so future versions can be installed as updates.
+            The APK, SHA-256 checksum, and signing-certificate verification report are attached. Provider and signing credentials are never embedded in the APK.
           files: |
             jarvis-mobile-v${{ env.VERSION }}.apk
             jarvis-mobile-v${{ env.VERSION }}.apk.sha256
+            jarvis-mobile-v${{ env.VERSION }}.apk.signer.txt
           generate_release_notes: true
