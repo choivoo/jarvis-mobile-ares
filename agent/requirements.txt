@@ -1,0 +1,4 @@
+livekit-agents>=1.0,<2
+livekit-plugins-google>=1.0,<2
+google-genai>=1.0,<2
+python-dotenv>=1.0,<2
