@@ -16,6 +16,7 @@ import com.sundwaeji.jarvis.wake.WakeWordEngine
 class JarvisCoreService : Service() {
     private var wakeEngine: WakeWordEngine? = null
     private var wakeState = WakeEngineState.STOPPED
+    private var wakePausedForConversation = false
 
     override fun onCreate() {
         super.onCreate()
@@ -42,7 +43,18 @@ class JarvisCoreService : Service() {
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, notification())
-        wakeEngine?.start()
+        when (intent?.action) {
+            ACTION_PAUSE_WAKE -> {
+                wakePausedForConversation = true
+                wakeEngine?.stop()
+                updateNotification("마이크를 음성 명령에 사용 중")
+            }
+            ACTION_RESUME_WAKE -> {
+                wakePausedForConversation = false
+                wakeEngine?.start()
+            }
+            else -> if (!wakePausedForConversation) wakeEngine?.start()
+        }
         return START_STICKY
     }
 
@@ -109,6 +121,8 @@ class JarvisCoreService : Service() {
         const val ACTION_STOP = "com.sundwaeji.jarvis.action.STOP_CORE"
         const val ACTION_WAKE_STATE = "com.sundwaeji.jarvis.action.WAKE_STATE"
         const val ACTION_WAKE_DETECTED = "com.sundwaeji.jarvis.action.WAKE_DETECTED"
+        const val ACTION_PAUSE_WAKE = "com.sundwaeji.jarvis.action.PAUSE_WAKE"
+        const val ACTION_RESUME_WAKE = "com.sundwaeji.jarvis.action.RESUME_WAKE"
         const val EXTRA_WAKE_STATE = "wake_state"
         const val EXTRA_WAKE_DETAIL = "wake_detail"
         private const val CHANNEL_CORE = "jarvis_core"

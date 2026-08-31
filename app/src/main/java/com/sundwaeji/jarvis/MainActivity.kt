@@ -67,12 +67,21 @@ class MainActivity : ComponentActivity() {
         liveKit.connect()
         voice = JarvisVoiceController(
             context = this,
-            onListening = { uiState = uiState.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", activeTool = "VOICE", audioLevel = 0f) },
+            onListening = {
+                pauseWakeForConversation()
+                uiState = uiState.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", activeTool = "VOICE", audioLevel = 0f)
+            },
             onAudioLevel = { level -> uiState = uiState.copy(audioLevel = level) },
             onRecognized = ::processKoreanVoice,
             onSpeakingStarted = { uiState = uiState.copy(phase = JarvisPhase.SPEAKING, audioLevel = 0.35f) },
-            onSpeakingFinished = { uiState = uiState.copy(phase = JarvisPhase.IDLE, activeTool = null, audioLevel = 0f) },
-            reportError = { message -> uiState = uiState.copy(phase = JarvisPhase.ERROR, activeTool = null, koreanSubtitle = message, audioLevel = 0f) },
+            onSpeakingFinished = {
+                resumeWakeAfterConversation()
+                uiState = uiState.copy(phase = JarvisPhase.IDLE, activeTool = null, audioLevel = 0f)
+            },
+            reportError = { message ->
+                resumeWakeAfterConversation()
+                uiState = uiState.copy(phase = JarvisPhase.ERROR, activeTool = null, koreanSubtitle = message, audioLevel = 0f)
+            },
         )
         enableEdgeToEdge()
         setContent {
@@ -88,7 +97,10 @@ class MainActivity : ComponentActivity() {
                 JarvisHud(
                     state = uiState,
                     onMic = {
-                        if (uiState.phase == JarvisPhase.LISTENING) voice.stopListening()
+                        if (uiState.phase == JarvisPhase.LISTENING) {
+                            voice.stopListening()
+                            resumeWakeAfterConversation()
+                        }
                         else requestMic.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onOverlay = ::openOverlayPermission,
@@ -169,6 +181,16 @@ class MainActivity : ComponentActivity() {
     private fun stopBackgroundCore() {
         stopService(Intent(this, JarvisCoreService::class.java))
         uiState = uiState.copy(backgroundServiceRunning = false, koreanSubtitle = "JARVIS 백그라운드 시스템을 중지했습니다.")
+    }
+
+    private fun pauseWakeForConversation() {
+        if (!uiState.backgroundServiceRunning) return
+        startService(Intent(this, JarvisCoreService::class.java).setAction(JarvisCoreService.ACTION_PAUSE_WAKE))
+    }
+
+    private fun resumeWakeAfterConversation() {
+        if (!uiState.backgroundServiceRunning) return
+        startService(Intent(this, JarvisCoreService::class.java).setAction(JarvisCoreService.ACTION_RESUME_WAKE))
     }
 
     private fun openOverlayPermission() {
