@@ -40,7 +40,7 @@ class LiveKitConnectionManager(context: Context) {
     private var eventsJob: Job? = null
     private var reconnectJob: Job? = null
     private var explicitlyClosed = false
-    private val installationId = appContext
+    val installationId: String = appContext
         .getSharedPreferences("jarvis_livekit", Context.MODE_PRIVATE)
         .getString("installation_id", null)
         ?: UUID.randomUUID().toString().also {

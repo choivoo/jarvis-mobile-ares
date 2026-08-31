@@ -3,6 +3,8 @@ package com.sundwaeji.jarvis
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.os.Build
 import android.os.Bundle
 import android.os.BatteryManager
@@ -104,6 +106,7 @@ class MainActivity : ComponentActivity() {
                         else requestMic.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onOverlay = ::openOverlayPermission,
+                    onCopyActivationId = ::copyActivationId,
                     onSystem = {
                         if (uiState.backgroundServiceRunning) stopBackgroundCore()
                         else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) requestNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -212,5 +215,11 @@ class MainActivity : ComponentActivity() {
             Intent(this, JarvisSubtitleOverlayService::class.java)
                 .putExtra(JarvisSubtitleOverlayService.EXTRA_SUBTITLE, text),
         )
+    }
+
+    private fun copyActivationId() {
+        val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        clipboard.setPrimaryClip(ClipData.newPlainText("JARVIS activation ID", liveKit.installationId))
+        uiState = uiState.copy(koreanSubtitle = "기기 활성화 ID를 복사했습니다. 배포 allowlist 등록에만 사용하세요.")
     }
 }

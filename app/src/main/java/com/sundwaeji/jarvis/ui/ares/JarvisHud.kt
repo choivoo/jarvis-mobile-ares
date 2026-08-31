@@ -35,7 +35,13 @@ private val Ice = Color(0xFFD9FAFF)
 private val Navy = Color(0xFF030A12)
 
 @Composable
-fun JarvisHud(state: JarvisUiState, onMic: () -> Unit, onOverlay: () -> Unit, onSystem: () -> Unit) {
+fun JarvisHud(
+    state: JarvisUiState,
+    onMic: () -> Unit,
+    onOverlay: () -> Unit,
+    onCopyActivationId: () -> Unit,
+    onSystem: () -> Unit,
+) {
     Column(
         Modifier.fillMaxSize().background(Navy).statusBarsPadding().navigationBarsPadding().padding(20.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -46,7 +52,7 @@ fun JarvisHud(state: JarvisUiState, onMic: () -> Unit, onOverlay: () -> Unit, on
         Spacer(Modifier.height(18.dp))
         Text(state.phase.label, color = Cyan, fontSize = 14.sp, fontWeight = FontWeight.Bold, letterSpacing = 3.sp)
         Spacer(Modifier.height(22.dp)); JarvisWaveform(state.audioLevel, state.phase in setOf(JarvisPhase.LISTENING, JarvisPhase.SPEAKING))
-        Spacer(Modifier.weight(.55f)); SubtitleCard(state.koreanSubtitle, state.overlayAuthorized, onOverlay); Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.weight(.55f)); SubtitleCard(state.koreanSubtitle, state.overlayAuthorized, onOverlay, onCopyActivationId); Spacer(Modifier.height(18.dp))
         CommandBar(onMic, onSystem, state.backgroundServiceRunning)
     }
 }
@@ -123,7 +129,7 @@ private fun JarvisWaveform(audioLevel: Float, active: Boolean) {
 }
 
 @Composable
-private fun SubtitleCard(text: String, overlayAuthorized: Boolean, onOverlay: () -> Unit) = Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xB20A1722)).border(1.dp, Cyan.copy(.28f), RoundedCornerShape(12.dp)).padding(16.dp)) {
+private fun SubtitleCard(text: String, overlayAuthorized: Boolean, onOverlay: () -> Unit, onCopyActivationId: () -> Unit) = Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xB20A1722)).border(1.dp, Cyan.copy(.28f), RoundedCornerShape(12.dp)).padding(16.dp)) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
         Text("JARVIS // KO SUBTITLE", color = Cyan, fontSize = 9.sp, fontWeight = FontWeight.Bold, letterSpacing = 2.sp)
         Text(
@@ -138,6 +144,15 @@ private fun SubtitleCard(text: String, overlayAuthorized: Boolean, onOverlay: ()
     AnimatedContent(targetState = text, transitionSpec = { fadeIn(tween(170)) togetherWith fadeOut(tween(90)) }, label = "subtitle") { subtitle ->
         Text(subtitle, color = Ice, fontSize = 16.sp, lineHeight = 24.sp)
     }
+    Spacer(Modifier.height(8.dp))
+    Text(
+        "COPY DEVICE ACTIVATION ID",
+        color = Cyan.copy(alpha = .72f),
+        fontSize = 8.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        modifier = Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onCopyActivationId).padding(vertical = 6.dp),
+    )
 }
 
 @Composable
