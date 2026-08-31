@@ -34,9 +34,13 @@ jobs:
         with:
           name: jarvis-mobile-v0.1.0
           path: jarvis-mobile-v0.1.0.apk
-      - name: Publish tagged release
-        if: startsWith(github.ref, 'refs/tags/v')
+      # V0.1 is released from the verified foundation build on main. Later versions
+      # will move to version tags once signing-key secrets are configured.
+      - name: Publish V0.1 release
+        if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v0.1.0
+          name: JARVIS Mobile V0.1.0
+          body: First verified ARES HUD foundation APK.
           files: jarvis-mobile-v0.1.0.apk
-          generate_release_notes: true
