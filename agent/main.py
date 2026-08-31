@@ -14,7 +14,7 @@ from prompts import JARVIS_INSTRUCTIONS
 load_dotenv(".env.local")
 
 AGENT_NAME = "jarvis-mobile"
-VOICE_NAME = "Charon"
+VOICE_NAME = "Gacrux"
 COMMAND_TOPIC = "jarvis.command.en.v1"
 RESPONSE_TOPIC = "jarvis.response.en.v1"
 
