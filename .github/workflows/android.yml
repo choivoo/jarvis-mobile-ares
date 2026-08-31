@@ -64,6 +64,118 @@ jobs:
           name: jarvis-mobile-v1.0.0-verification
           path: app/build/outputs/apk/debug/app-debug.apk
 
+
+  release-gate:
+    if: ${{ github.ref == 'refs/heads/release/v1.0.0' }}
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      VERSION: 1.0.0
+      JARVIS_KEYSTORE_PASSWORD: ${{ secrets.JARVIS_KEYSTORE_PASSWORD }}
+      JARVIS_KEY_ALIAS: ${{ secrets.JARVIS_KEY_ALIAS }}
+      JARVIS_KEY_PASSWORD: ${{ secrets.JARVIS_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - uses: android-actions/setup-android@v3
+
+      - name: Validate V1.0 release source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = "refs/heads/release/v1.0.0"
+          grep -F 'versionName = "1.0.0"' app/build.gradle.kts
+          grep -F 'versionCode = 100' app/build.gradle.kts
+
+      - name: Validate production signing secrets
+        shell: bash
+        env:
+          JARVIS_KEYSTORE_BASE64: ${{ secrets.JARVIS_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "$JARVIS_KEYSTORE_BASE64"
+          test -n "$JARVIS_KEYSTORE_PASSWORD"
+          test -n "$JARVIS_KEY_ALIAS"
+          test -n "$JARVIS_KEY_PASSWORD"
+          echo "$JARVIS_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/jarvis-release.jks"
+          test -s "$RUNNER_TEMP/jarvis-release.jks"
+          keytool -list -keystore "$RUNNER_TEMP/jarvis-release.jks" -storepass "$JARVIS_KEYSTORE_PASSWORD" -alias "$JARVIS_KEY_ALIAS" >/dev/null
+          echo "JARVIS_KEYSTORE_PATH=$RUNNER_TEMP/jarvis-release.jks" >> "$GITHUB_ENV"
+
+      - name: Test, lint and build production-signed APK
+        run: gradle clean test lint assembleRelease --stacktrace -PjarvisTokenEndpoint=https://jarvis-mobile-token.choivoovooge.workers.dev/v1/livekit/token
+
+      - name: Verify signature, checksum and APK secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s app/build/outputs/apk/release/app-release.apk
+          cp app/build/outputs/apk/release/app-release.apk "jarvis-mobile-v${VERSION}.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose --print-certs "jarvis-mobile-v${VERSION}.apk" | tee "jarvis-mobile-v${VERSION}.apk.signer.txt"
+          sha256sum "jarvis-mobile-v${VERSION}.apk" > "jarvis-mobile-v${VERSION}.apk.sha256"
+          sha256sum -c "jarvis-mobile-v${VERSION}.apk.sha256"
+          unzip -p "jarvis-mobile-v${VERSION}.apk" | strings > "$RUNNER_TEMP/apk-strings.txt"
+          if grep -E '(AIza[0-9A-Za-z_-]{30,}|LIVEKIT_API_SECRET=|JARVIS_KEYSTORE_PASSWORD=)' "$RUNNER_TEMP/apk-strings.txt"; then
+            echo 'Potential secret material detected in APK'
+            exit 1
+          fi
+
+      - name: Fast-forward main and create official tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          test "$(git rev-parse origin/main)" = "$(git merge-base origin/main "$GITHUB_SHA")"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git rev-parse -q --verify "refs/tags/v1.0.0" >/dev/null; then
+            test "$(git rev-list -n 1 v1.0.0)" = "$GITHUB_SHA"
+          else
+            git tag -a v1.0.0 -m "JARVIS Mobile V1.0.0 Official" "$GITHUB_SHA"
+          fi
+          git push origin "$GITHUB_SHA:refs/heads/main"
+          git push origin "refs/tags/v1.0.0"
+
+      - name: Upload official APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jarvis-mobile-v1.0.0-official
+          path: |
+            jarvis-mobile-v1.0.0.apk
+            jarvis-mobile-v1.0.0.apk.sha256
+            jarvis-mobile-v1.0.0.apk.signer.txt
+
+      - name: Publish JARVIS Mobile V1.0.0 Official
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: JARVIS Mobile V1.0.0 Official
+          prerelease: false
+          make_latest: true
+          body: |
+            # JARVIS Mobile ARES V1.0.0
+
+            Production-signed official Android release. Korean speech is translated to English for the assistant brain, spoken responses remain English, and the standard UI displays Korean subtitles only.
+
+            The APK, SHA-256 checksum, and signing-certificate report are attached. Provider and signing credentials are not embedded in the APK.
+          files: |
+            jarvis-mobile-v1.0.0.apk
+            jarvis-mobile-v1.0.0.apk.sha256
+            jarvis-mobile-v1.0.0.apk.signer.txt
+          generate_release_notes: true
+
   official-release:
     if: ${{ github.ref == 'refs/tags/v1.0.0' }}
     runs-on: ubuntu-latest
