@@ -17,15 +17,15 @@ import com.sundwaeji.jarvis.ui.ares.JarvisPhase
 import com.sundwaeji.jarvis.ui.ares.JarvisUiState
 import com.sundwaeji.jarvis.ui.theme.JarvisAresTheme
 import com.sundwaeji.jarvis.translation.TranslationManager
+import com.sundwaeji.jarvis.tools.ToolResult
+import com.sundwaeji.jarvis.tools.ToolRouter
 import com.sundwaeji.jarvis.voice.JarvisVoiceController
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private var uiState by mutableStateOf(JarvisUiState())
     private lateinit var voice: JarvisVoiceController
     private lateinit var translation: TranslationManager
+    private lateinit var tools: ToolRouter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +33,7 @@ class MainActivity : ComponentActivity() {
             .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
         uiState = uiState.copy(batteryPercent = battery)
         translation = TranslationManager()
+        tools = ToolRouter(applicationContext)
         voice = JarvisVoiceController(
             context = this,
             onListening = { uiState = uiState.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", activeTool = "VOICE", audioLevel = 0f) },
@@ -60,6 +61,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         voice.release()
         translation.close()
+        tools.close()
         super.onDestroy()
     }
 
@@ -69,13 +71,10 @@ class MainActivity : ComponentActivity() {
             text = koreanInput,
             onSuccess = { englishInput ->
                 // The English string is deliberately not exposed on the standard HUD.
-                val englishResponse = localEnglishResponse(englishInput)
-                translation.translateEnToKo(
-                    text = englishResponse,
-                    onSuccess = { koreanSubtitle ->
-                        uiState = uiState.copy(phase = JarvisPhase.SPEAKING, activeTool = if (englishInput.contains("battery", true) || englishInput.contains("time", true)) "DEVICE" else "LOCAL", koreanSubtitle = koreanSubtitle, audioLevel = .35f)
-                        voice.speak(englishResponse)
-                    },
+                tools.route(
+                    englishInput = englishInput,
+                    onExecuting = { tool -> uiState = uiState.copy(phase = JarvisPhase.EXECUTING, activeTool = tool, koreanSubtitle = "요청한 도구를 실행하고 있습니다…") },
+                    onSuccess = ::deliverToolResult,
                     onFailure = ::showTranslationFailure,
                 )
             },
@@ -83,13 +82,15 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun localEnglishResponse(englishInput: String): String = when {
-        englishInput.contains("battery", ignoreCase = true) -> uiState.batteryPercent?.let {
-            "Your battery is currently at $it percent."
-        } ?: "Battery information is currently unavailable."
-        englishInput.contains("time", ignoreCase = true) ->
-            "It is currently ${SimpleDateFormat("h:mm a", Locale.UK).format(Date())}."
-        else -> "I understand. The cloud intelligence link is being prepared."
+    private fun deliverToolResult(result: ToolResult) {
+        translation.translateEnToKo(
+            text = result.englishResponse,
+            onSuccess = { koreanSubtitle ->
+                uiState = uiState.copy(phase = JarvisPhase.SPEAKING, activeTool = result.tool, koreanSubtitle = koreanSubtitle, audioLevel = .35f)
+                voice.speak(result.englishResponse)
+            },
+            onFailure = ::showTranslationFailure,
+        )
     }
 
     private fun showTranslationFailure(message: String) {

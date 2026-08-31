@@ -13,8 +13,8 @@ android {
         applicationId = "com.sundwaeji.jarvis"
         minSdk = 24
         targetSdk = 36
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 100
+        versionName = "1.0.0-rc.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
