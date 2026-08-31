@@ -16,30 +16,27 @@ import com.sundwaeji.jarvis.ui.ares.JarvisHud
 import com.sundwaeji.jarvis.ui.ares.JarvisPhase
 import com.sundwaeji.jarvis.ui.ares.JarvisUiState
 import com.sundwaeji.jarvis.ui.theme.JarvisAresTheme
+import com.sundwaeji.jarvis.translation.TranslationManager
 import com.sundwaeji.jarvis.voice.JarvisVoiceController
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
     private var uiState by mutableStateOf(JarvisUiState())
     private lateinit var voice: JarvisVoiceController
+    private lateinit var translation: TranslationManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val battery = (getSystemService(Context.BATTERY_SERVICE) as BatteryManager)
             .getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
         uiState = uiState.copy(batteryPercent = battery)
+        translation = TranslationManager()
         voice = JarvisVoiceController(
             context = this,
             onListening = { uiState = uiState.copy(phase = JarvisPhase.LISTENING, koreanSubtitle = "듣고 있습니다…", audioLevel = 0f) },
             onAudioLevel = { level -> uiState = uiState.copy(audioLevel = level) },
-            onRecognized = { korean ->
-                // V0.2 proves the live voice bridge. V0.3 adds KO → EN → AI routing.
-                uiState = uiState.copy(
-                    phase = JarvisPhase.SPEAKING,
-                    audioLevel = 0.35f,
-                    koreanSubtitle = "음성을 인식했습니다. 언어 처리 시스템을 준비하고 있습니다.",
-                )
-                voice.speak("I heard you. The language processing system will be ready in the next update.")
-            },
+            onRecognized = ::processKoreanVoice,
             onSpeakingStarted = { uiState = uiState.copy(phase = JarvisPhase.SPEAKING, audioLevel = 0.35f) },
             onSpeakingFinished = { uiState = uiState.copy(phase = JarvisPhase.IDLE, audioLevel = 0f) },
             reportError = { message -> uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = message, audioLevel = 0f) },
@@ -61,6 +58,40 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         voice.release()
+        translation.close()
         super.onDestroy()
+    }
+
+    private fun processKoreanVoice(koreanInput: String) {
+        uiState = uiState.copy(phase = JarvisPhase.TRANSLATING, koreanSubtitle = "한국어 명령을 처리하고 있습니다…", audioLevel = 0f)
+        translation.translateKoToEn(
+            text = koreanInput,
+            onSuccess = { englishInput ->
+                // The English string is deliberately not exposed on the standard HUD.
+                val englishResponse = localEnglishResponse(englishInput)
+                translation.translateEnToKo(
+                    text = englishResponse,
+                    onSuccess = { koreanSubtitle ->
+                        uiState = uiState.copy(phase = JarvisPhase.SPEAKING, koreanSubtitle = koreanSubtitle, audioLevel = .35f)
+                        voice.speak(englishResponse)
+                    },
+                    onFailure = ::showTranslationFailure,
+                )
+            },
+            onFailure = ::showTranslationFailure,
+        )
+    }
+
+    private fun localEnglishResponse(englishInput: String): String = when {
+        englishInput.contains("battery", ignoreCase = true) -> uiState.batteryPercent?.let {
+            "Your battery is currently at $it percent."
+        } ?: "Battery information is currently unavailable."
+        englishInput.contains("time", ignoreCase = true) ->
+            "It is currently ${LocalTime.now().format(DateTimeFormatter.ofPattern("h:mm a"))}."
+        else -> "I understand. The cloud intelligence link is being prepared."
+    }
+
+    private fun showTranslationFailure(message: String) {
+        uiState = uiState.copy(phase = JarvisPhase.ERROR, koreanSubtitle = message, audioLevel = 0f)
     }
 }
