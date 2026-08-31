@@ -19,20 +19,32 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+      LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+      LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Validate Cloudflare deployment credentials
+      - name: Validate deployment credentials
         shell: bash
         run: |
           set -euo pipefail
-          test -n "$CLOUDFLARE_API_TOKEN"
-          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          for required in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID LIVEKIT_URL LIVEKIT_API_KEY LIVEKIT_API_SECRET; do
+            test -n "${!required}"
+          done
       - name: Deploy fail-closed token service
         working-directory: backend/cloudflare
         run: npx --yes wrangler@4 deploy
+      - name: Set Worker server-side LiveKit secrets
+        working-directory: backend/cloudflare
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf %s "$LIVEKIT_URL" | npx --yes wrangler@4 secret put LIVEKIT_URL
+          printf %s "$LIVEKIT_API_KEY" | npx --yes wrangler@4 secret put LIVEKIT_API_KEY
+          printf %s "$LIVEKIT_API_SECRET" | npx --yes wrangler@4 secret put LIVEKIT_API_SECRET
 
-# Worker secrets are deliberately set in Cloudflare after deployment. The endpoint returns
-# 403 until JARVIS_ALLOWED_INSTALLATIONS contains the specific app installation UUID.
+# Installation allowlists remain fail-closed until a specific activation ID is enrolled.
+# JARVIS_ALLOWED_INSTALLATIONS is deliberately not supplied by CI and is set only after RC install.
